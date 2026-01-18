@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Enaji Studio</title>
+
+<style>
+body{margin:0;background:#0b0b0b;color:#fff;font-family:Arial}
+header{padding:15px;font-size:22px;font-weight:bold;background:#000;position:sticky;top:0}
+button,input,textarea,select{
+  width:100%;padding:10px;margin:6px 0;border:none;border-radius:8px
+}
+button{background:#00dc64;color:#000;font-weight:bold}
+.manga{padding:15px;border-bottom:1px solid #222}
+.manga img{width:100%;border-radius:10px}
+.chapter{padding:10px;background:#1a1a1a;margin:6px 0;border-radius:8px}
+#admin,#reader{display:none;padding:15px}
+#reader{position:fixed;inset:0;background:#000;overflow:auto}
+.comment{background:#1f1f1f;padding:6px;border-radius:6px;margin:4px 0}
+iframe{width:100%;height:80vh;border:none}
+</style>
+</head>
+
+<body>
+
+<header>📚 Enaji Studio</header>
+
+<button onclick="toggleAdmin()">🔐 Admin Mode</button>
+
+<div id="admin">
+  <input id="code" placeholder="Admin code">
+  <button onclick="unlock()">Unlock</button>
+
+  <div id="panel" style="display:none">
+    <h3>Create Manga</h3>
+    <input id="mTitle" placeholder="Manga title">
+    <textarea id="mDesc" placeholder="Description"></textarea>
+    <input type="file" id="mCover" accept="image/*">
+    <button onclick="createManga()">Create Manga</button>
+
+    <h3>Add Chapter (PDF)</h3>
+    <select id="mSelect"></select>
+    <input id="cTitle" placeholder="Chapter title">
+    <input type="file" id="cPdf" accept="application/pdf">
+    <button onclick="addChapter()">Add Chapter</button>
+  </div>
+</div>
+
+<div id="list"></div>
+
+<div id="reader">
+  <h2 id="rManga"></h2>
+  <h4 id="rChapter"></h4>
+
+  <iframe id="pdfView"></iframe>
+
+  <p>👁 <span id="views"></span> 👍 <span id="likes"></span></p>
+  <button onclick="like()">👍 Like</button>
+
+  <h3>Comments</h3>
+  <div id="comments"></div>
+  <textarea id="commentText" placeholder="Write comment"></textarea>
+  <button onclick="postComment()">Post</button>
+
+  <button onclick="closeReader()">Close</button>
+</div>
+
+<script>
+const ADMIN="ENAJI-ONLY";
+let cm=0, cc=0;
+
+if(!localStorage.manga){
+  localStorage.manga=JSON.stringify([]);
+}
+
+function toggleAdmin(){
+  admin.style.display=admin.style.display?"":"block";
+}
+
+function unlock(){
+  if(code.value===ADMIN){
+    panel.style.display="block";
+    loadSelect();
+    alert("Admin unlocked");
+  } else alert("Wrong code");
+}
+
+function createManga(){
+  if(!mTitle.value||!mCover.files[0]) return alert("Fill all");
+  const r=new FileReader();
+  r.onload=e=>{
+    let m=JSON.parse(localStorage.manga);
+    m.push({
+      title:mTitle.value,
+      desc:mDesc.value,
+      cover:e.target.result,
+      chapters:[]
+    });
+    localStorage.manga=JSON.stringify(m);
+    mTitle.value=""; mDesc.value="";
+    render(); loadSelect();
+    alert("Manga created");
+  }
+  r.readAsDataURL(mCover.files[0]);
+}
+
+function addChapter(){
+  if(!cTitle.value||!cPdf.files[0]) return alert("Select PDF");
+  const r=new FileReader();
+  r.onload=e=>{
+    let m=JSON.parse(localStorage.manga);
+    m[mSelect.value].chapters.push({
+      title:cTitle.value,
+      pdf:e.target.result,
+      views:0,
+      likes:0,
+      comments:[]
+    });
+    localStorage.manga=JSON.stringify(m);
+    cTitle.value="";
+    render();
+    alert("Chapter added");
+  }
+  r.readAsDataURL(cPdf.files[0]);
+}
+
+function loadSelect(){
+  mSelect.innerHTML="";
+  JSON.parse(localStorage.manga).forEach((m,i)=>{
+    mSelect.innerHTML+=`<option value="${i}">${m.title}</option>`;
+  });
+}
+
+function render(){
+  list.innerHTML="";
+  JSON.parse(localStorage.manga).forEach((m,i)=>{
+    const d=document.createElement("div");
+    d.className="manga";
+    d.innerHTML=`
+      <img src="${m.cover}">
+      <h3>${m.title}</h3>
+      <p>${m.desc}</p>
+      ${m.chapters.map((c,j)=>`
+        <div class="chapter" onclick="openReader(${i},${j})">
+          📄 ${c.title}
+        </div>`).join("")}
+    `;
+    list.appendChild(d);
+  });
+}
+
+function openReader(i,j){
+  cm=i; cc=j;
+  let m=JSON.parse(localStorage.manga);
+  let c=m[i].chapters[j];
+  c.views++;
+  localStorage.manga=JSON.stringify(m);
+
+  rManga.innerText=m[i].title;
+  rChapter.innerText=c.title;
+  pdfView.src=c.pdf;
+  views.innerText=c.views;
+  likes.innerText=c.likes;
+  comments.innerHTML=c.comments.map(x=>`<div class="comment">${x}</div>`).join("");
+  reader.style.display="block";
+}
+
+function like(){
+  let m=JSON.parse(localStorage.manga);
+  m[cm].chapters[cc].likes++;
+  localStorage.manga=JSON.stringify(m);
+  likes.innerText=m[cm].chapters[cc].likes;
+}
+
+function postComment(){
+  let m=JSON.parse(localStorage.manga);
+  m[cm].chapters[cc].comments.push(commentText.value);
+  localStorage.manga=JSON.stringify(m);
+  commentText.value="";
+  openReader(cm,cc);
+}
+
+function closeReader(){reader.style.display="none";}
+
+render();
+</script>
+
+</body>
+</html>
